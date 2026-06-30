@@ -55,6 +55,7 @@ jobs:
         run: npm run test
         env: 
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          
 
 <!-- set node v -->
         with:
