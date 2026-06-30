@@ -48,6 +48,8 @@ jobs:
   unit-test:
     runs-on: ubuntu-latest
     needs: build
+    outputs:
+      summary: ${{ steps.run-tests.outputs.summary }}
     steps :
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -68,13 +70,22 @@ jobs:
           path: .next
       
       - name: Run unit tests
-        run: npm run test:unit
+        id: run-tests
+        run: |
+          npm run test:unit -- --reporter=default --reporter=github-actions
+          {
+            echo "summary<<EOF"
+            cat "$GITHUB_STEP_SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
         env: 
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
 
   integration-test:
     runs-on: ubuntu-latest
     needs: build
+    outputs:
+      summary: ${{ steps.run-tests.outputs.summary }}
     steps :
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -95,7 +106,14 @@ jobs:
           path: .next
       
       - name: Run integration tests
-        run: npm run test:integration
+        id: run-tests
+        run: |
+          npm run test:integration -- --reporter=default --reporter=github-actions
+          {
+            echo "summary<<EOF"
+            cat "$GITHUB_STEP_SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
         env: 
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
   
@@ -106,8 +124,14 @@ jobs:
     steps:
       - name: Create Pull Request
         uses: actions/github-script@v7
+        env:
+          UNIT_SUMMARY: ${{ needs.unit-test.outputs.summary }}
+          INTEGRATION_SUMMARY: ${{ needs.integration-test.outputs.summary }}
         with:
           script: |
+            const unitSummary = process.env.UNIT_SUMMARY;
+            const integrationSummary = process.env.INTEGRATION_SUMMARY;
+            
             github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -117,8 +141,10 @@ jobs:
               body: [
                 'This is an automated pull request created after successful unit and integration tests.',
                 '',
-                '### Test Details:',
-                '- **Unit Tests**: Verified cryptography utilities and database helper functions.',
-                '- **Integration Tests**: Verified GET/POST API endpoints, data flow, visitor likes, and compressed/encrypted image storage & decryption.'
+                '### Unit Test Summary',
+                unitSummary,
+                '',
+                '### Integration Test Summary',
+                integrationSummary
               ].join('\n')
             });
